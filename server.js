@@ -21,7 +21,7 @@ app.post('/run', async (req, res) => {
         language: 'python',
         versionIndex: '4',
         clientId: '2ffb5d8efe0b8c0487b9f2b3dfe5ad42',  // JDoodle client ID
-        clientSecret: '4c42bfb0db5ec6db679158bedd0cb2af06a8256be4b9c0b4bde48980365b160b',  // JDoodle client secret
+        clientSecret: '40d74c8cb98ffcae804aacfa847211a9ea3316c311f2ad10c305069b8247e040',  // JDoodle client secret
     };
 
     try {
