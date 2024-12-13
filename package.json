@@ -11,4 +11,8 @@
     "node-fetch": "^3.3.2",
     "cors": "^2.8.5"
   },
-  "type": "module" 
+  "devDependencies": {},
+  "description": "",
+  "type": "module"  // Make sure there's no trailing comma here if this is the last property
+}
+
