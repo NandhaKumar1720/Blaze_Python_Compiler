@@ -18,8 +18,8 @@ app.post('/run', async (req, res) => {
     const payload = {
         script: code,
         stdin: input,
-        language: 'python',
-        versionIndex: '4',
+        language: 'python3',
+        versionIndex: '3',
         clientId: '2ffb5d8efe0b8c0487b9f2b3dfe5ad42',  // JDoodle client ID
         clientSecret: '40d74c8cb98ffcae804aacfa847211a9ea3316c311f2ad10c305069b8247e040',  // JDoodle client secret
     };
