@@ -1,58 +1,55 @@
-// Import required libraries
-import express from 'express';  // For setting up the server
-import bodyParser from 'body-parser';  // For parsing incoming request bodies
-import fetch from 'node-fetch';  // To make requests to JDoodle API
-import cors from 'cors';  // To handle CORS issues (if your frontend is on a different domain)
+import express from 'express';
+import bodyParser from 'body-parser';
+import fetch from 'node-fetch';  // Import fetch for API requests
+import cors from 'cors';  // Import CORS
 
-const app = express();  // Initialize the Express application
+const app = express();
 
-// Enable CORS for all origins (or specify allowed origins if needed)
-app.use(cors());  
+// Enable CORS for all origins (or specify allowed origins)
+app.use(cors());
 
-// Middleware to parse JSON bodies
+// Middleware to parse incoming JSON request bodies
 app.use(bodyParser.json());
 
-// POST route to run the Python code
+// POST endpoint to execute code
 app.post('/run', async (req, res) => {
-    const { code, input } = req.body;  // Extract the code and input from the request body
+    const { code, input } = req.body;  // Extract code and input from the request
 
-    // Payload for the JDoodle API
     const payload = {
-        script: code,  // The Python code from the frontend
-        stdin: input,  // The input provided by the user
-        language: 'python',  // Set the language to Python
-        versionIndex: '4',  // Use version 4 of JDoodle API
-        clientId: '2ffb5d8efe0b8c0487b9f2b3dfe5ad42',  // Your JDoodle client ID
-        clientSecret: '4c42bfb0db5ec6db679158bedd0cb2af06a8256be4b9c0b4bde48980365b160b',  // Your JDoodle client secret
+        script: code,
+        stdin: input,
+        language: 'python',
+        versionIndex: '4',
+        clientId: '2ffb5d8efe0b8c0487b9f2b3dfe5ad42',  // JDoodle client ID
+        clientSecret: '4c42bfb0db5ec6db679158bedd0cb2af06a8256be4b9c0b4bde48980365b160b',  // JDoodle client secret
     };
 
     try {
-        // Send POST request to JDoodle API
+        // Sending request to JDoodle API to execute the code
         const response = await fetch('https://api.jdoodle.com/v1/execute', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
         });
 
-        // Check if the response from JDoodle API is okay
+        // If the response from JDoodle API is not ok, throw an error
         if (!response.ok) {
-            throw new Error(`JDoodle API error: ${response.statusText}`);
+            const errorMessage = `JDoodle API error: ${response.statusText}`;
+            console.error(errorMessage);
+            throw new Error(errorMessage);
         }
 
-        // Parse the response from JDoodle API
         const data = await response.json();
-        res.json(data);  // Send the response back to the frontend
+        res.json(data);  // Send the output back to the frontend
     } catch (error) {
-        // If an error occurs, return a 500 error
-        console.error('Error:', error.message);
+        // Log error details and send a 500 response to the frontend
+        console.error('Backend Error:', error);
         res.status(500).json({ error: 'Error executing code. Try again later.' });
     }
 });
 
-// Set the port dynamically (Render will assign this automatically) or use 10000 as fallback for local testing
+// Use a dynamic port if available, otherwise default to 10000
 const PORT = process.env.PORT || 10000;
-
-// Start the Express server
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
 });
