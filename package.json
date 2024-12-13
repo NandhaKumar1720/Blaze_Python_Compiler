@@ -11,5 +11,4 @@
     "node-fetch": "^3.3.2",
     "cors": "^2.8.5"
   },
-  "type": "module"  // Make sure to add this line for ES module support
-}
+  "type": "module" 
