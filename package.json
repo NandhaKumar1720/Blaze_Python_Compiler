@@ -13,6 +13,5 @@
   },
   "devDependencies": {},
   "description": "",
-  "type": "module"  // Make sure there's no trailing comma here if this is the last property
+  "type": "module" 
 }
-
