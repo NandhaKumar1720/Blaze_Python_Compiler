@@ -1,5 +1,5 @@
 const express = require('express');
-const { exec } = require('child_process');
+const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');  // For generating unique hashes of code
@@ -10,10 +10,11 @@ const PORT = 3000;
 // Middleware to parse JSON data
 app.use(express.json());
 
-// Use in-memory cache to store Python code (not binaries)
-const cachedPythonCode = {};
+// JDoodle API Credentials (Replace these with your actual credentials)
+const clientId = "your_client_id";  // Replace with your JDoodle Client ID
+const clientSecret = "your_client_secret";  // Replace with your JDoodle Client Secret
 
-// POST route to execute the Python code
+// POST route to execute the Python code using JDoodle API
 app.post('/', (req, res) => {
     const { code, input } = req.body;
 
@@ -21,35 +22,27 @@ app.post('/', (req, res) => {
         return res.status(400).json({ output: 'Error: No code provided!' });
     }
 
-    // Generate a unique hash for the given code
-    const codeHash = crypto.createHash('sha256').update(code).digest('hex');
-    const pythonFile = path.join(__dirname, `${codeHash}.py`);
+    // Prepare the payload to send to JDoodle API
+    const payload = {
+        script: code,  // Python code
+        language: "python3",  // Language for JDoodle (python3 in this case)
+        versionIndex: "0",  // Version index (0 corresponds to Python 3)
+        stdin: input || "",  // Provide input if available
+        clientId:2ffb5d8efe0b8c0487b9f2b3dfe5ad42 ,  // Your JDoodle client ID
+        clientSecret:40d74c8cb98ffcae804aacfa847211a9ea3316c311f2ad10c305069b8247e040   // Your JDoodle client secret
+    };
 
-    // If the Python code is already cached, skip file writing
-    if (cachedPythonCode[codeHash]) {
-        return executePython(pythonFile, input, res);
-    }
-
-    // Otherwise, save the code to a temporary file
-    fs.writeFileSync(pythonFile, code);
-
-    // Cache the Python code in memory
-    cachedPythonCode[codeHash] = pythonFile;
-    executePython(pythonFile, input, res);
+    // Send request to JDoodle API
+    axios.post('https://api.jdoodle.com/v1/execute', payload)
+        .then(response => {
+            // JDoodle API returns output in response.data.output
+            res.json({ output: response.data.output || 'No output' });
+        })
+        .catch(error => {
+            console.error("JDoodle API error:", error);
+            res.status(500).json({ output: `Error with JDoodle API: ${error.message}` });
+        });
 });
-
-// Function to execute the Python code
-function executePython(pythonFile, input, res) {
-    // If input is provided, use echo to pass it to the Python program
-    const runCommand = input ? `echo "${input}" | python ${pythonFile}` : `python ${pythonFile}`;
-
-    exec(runCommand, (runErr, runStdout, runStderr) => {
-        if (runErr) {
-            return res.json({ output: `Runtime Error:\n${runStderr || runStdout}` });
-        }
-        res.json({ output: runStdout || 'No output' });
-    });
-}
 
 // Start the server
 app.listen(PORT, () => {
