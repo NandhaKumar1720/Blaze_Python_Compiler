@@ -1,61 +1,57 @@
-import express from 'express';
-import bodyParser from 'body-parser';
-import fetch from 'node-fetch'; // For making API requests
-import cors from 'cors'; // To handle cross-origin requests
+const express = require('express');
+const { exec } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');  // For generating unique hashes of code
 
 const app = express();
+const PORT = 3000;
 
-// Enable CORS for all origins (or specify allowed origins)
-app.use(cors());
+// Middleware to parse JSON data
+app.use(express.json());
 
-// Middleware to parse JSON request bodies
-app.use(bodyParser.json());
+// Use in-memory cache to store Python code (not binaries)
+const cachedPythonCode = {};
 
-// POST endpoint to execute Python code using OneCompiler API
-app.post('/run', async (req, res) => {
-    const { code, input } = req.body; // Extract code and input from the request
+// POST route to execute the Python code
+app.post('/', (req, res) => {
+    const { code, input } = req.body;
 
-    const payload = {
-        language: 'python', // Language is set to Python
-        stdin: input, // Input for the code
-        files: [
-            {
-                name: 'index.py', // Python script name
-                content: code // Python code content
-            }
-        ]
-    };
-
-    try {
-        // Make a POST request to OneCompiler API
-        const response = await fetch('https://onecompiler-apis.p.rapidapi.com/api/v1/run', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-rapidapi-host': 'onecompiler-apis.p.rapidapi.com',
-                'x-rapidapi-key': '7998bb912dmsh687302b90d54c6ep1bafa1jsn83def16b4479' // Your RapidAPI Key
-            },
-            body: JSON.stringify(payload), // Send the payload as JSON
-        });
-
-        // Check if the response from the API is successful
-        if (!response.ok) {
-            const errorMessage = `OneCompiler API error: ${response.statusText}`;
-            console.error(errorMessage);
-            throw new Error(errorMessage);
-        }
-
-        const data = await response.json();
-        res.json(data); // Send the output from the OneCompiler API back to the frontend
-    } catch (error) {
-        // Log error details and send a 500 response to the frontend
-        console.error('Backend Error:', error);
-        res.status(500).json({ error: 'Error executing Python code. Try again later.' });
+    if (!code) {
+        return res.status(400).json({ output: 'Error: No code provided!' });
     }
+
+    // Generate a unique hash for the given code
+    const codeHash = crypto.createHash('sha256').update(code).digest('hex');
+    const pythonFile = path.join(__dirname, `${codeHash}.py`);
+
+    // If the Python code is already cached, skip file writing
+    if (cachedPythonCode[codeHash]) {
+        return executePython(pythonFile, input, res);
+    }
+
+    // Otherwise, save the code to a temporary file
+    fs.writeFileSync(pythonFile, code);
+
+    // Cache the Python code in memory
+    cachedPythonCode[codeHash] = pythonFile;
+    executePython(pythonFile, input, res);
 });
 
-// Use a dynamic port if available, otherwise default to 10000
-const PORT = process.env.PORT || 10000;
+// Function to execute the Python code
+function executePython(pythonFile, input, res) {
+    // If input is provided, use echo to pass it to the Python program
+    const runCommand = input ? `echo "${input}" | python ${pythonFile}` : `python ${pythonFile}`;
+
+    exec(runCommand, (runErr, runStdout, runStderr) => {
+        if (runErr) {
+            return res.json({ output: `Runtime Error:\n${runStderr || runStdout}` });
+        }
+        res.json({ output: runStdout || 'No output' });
+    });
+}
+
+// Start the server
 app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Server is running on http://localhost:${PORT}`);
 });
