@@ -1,12 +1,14 @@
-
 const express = require('express');
-const { spawn } = require('child_process');
-const fs = require('fs');
-const path = require('path');
+const axios = require('axios');
 const cors = require('cors');
 
 const app = express();
 const PORT = 3000;
+
+// JDoodle API credentials
+const CLIENT_ID = '2ffb5d8efe0b8c0487b9f2b3dfe5ad42';
+const CLIENT_SECRET = '<40d74c8cb98ffcae804aacfa847211a9ea3316c311f2ad10c305069b8247e040>';
+const JDoodle_API_URL = 'https://api.jdoodle.com/v1/execute';
 
 app.use(cors());
 app.use(express.json());
@@ -18,31 +20,25 @@ app.post('/', async (req, res) => {
         return res.status(400).json({ output: 'Error: No code provided!' });
     }
 
-    const sourceFile = path.join(__dirname, 'temp.py');
-
-    // Write the code to a temporary file
-    fs.writeFileSync(sourceFile, code);
-
     try {
-        // Run the Python script
-        const runProcess = spawn('python', [sourceFile], { stdio: 'pipe' });
+        // JDoodle API payload
+        const payload = {
+            clientId: CLIENT_ID,
+            clientSecret: CLIENT_SECRET,
+            script: code,
+            stdin: input || '',
+            language: 'python3', // Change language if needed
+            versionIndex: '3'   // Python 3 version index
+        };
 
-        let output = '';
+        // Send a POST request to JDoodle API
+        const response = await axios.post(JDoodle_API_URL, payload);
 
-        runProcess.stdout.on('data', (data) => (output += data.toString()));
-        runProcess.stderr.on('data', (data) => (output += data.toString()));
-
-        runProcess.on('close', () => {
-            res.json({ output: output || 'No output' });
-
-            // Cleanup temporary file
-            fs.unlinkSync(sourceFile);
-        });
+        // Extract and send the output
+        res.json({ output: response.data.output || 'No output' });
     } catch (error) {
-        res.json({ output: `Error: ${error.message}` });
-
-        // Cleanup temporary file in case of an error
-        if (fs.existsSync(sourceFile)) fs.unlinkSync(sourceFile);
+        console.error('Error:', error.message || error.response.data);
+        res.status(500).json({ output: 'Error: Unable to execute the code.' });
     }
 });
 
