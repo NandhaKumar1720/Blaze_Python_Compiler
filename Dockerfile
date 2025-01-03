@@ -1,7 +1,7 @@
 # Use the official Node.js image as the base
 FROM node:16
 
-# Install Python and other necessary tools
+# Install Python and necessary build tools
 RUN apt-get update && apt-get install -y python3 python3-pip build-essential
 
 # Set the working directory inside the container
@@ -21,3 +21,4 @@ EXPOSE 3000
 
 # Start the server
 CMD ["node", "server.js"]
+
