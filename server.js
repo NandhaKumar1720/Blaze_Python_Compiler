@@ -1,75 +1,93 @@
-const express = require('express');
-const { spawn } = require('child_process');
-const fs = require('fs');
-const path = require('path');
-const cors = require('cors');
+const express = require("express");
+const bodyParser = require("body-parser");
+const { Worker } = require("worker_threads");
+const cors = require("cors");
+const crypto = require("crypto");
+const http = require("http");
 
 const app = express();
-const PORT = 3000;
+const port = 3000;
 
+// Enable CORS
 app.use(cors());
-app.use(express.json());
 
-app.post('/', async (req, res) => {
+// Middleware for JSON parsing
+app.use(bodyParser.json());
+
+// In-memory cache to store compiled results
+const cache = new Map();
+const CACHE_EXPIRATION_TIME = 60 * 60 * 1000; // 1 hour
+const MAX_CACHE_SIZE = 100;
+
+// Helper to clean up the cache periodically
+setInterval(() => {
+    const now = Date.now();
+    for (const [key, { timestamp }] of cache.entries()) {
+        if (now - timestamp > CACHE_EXPIRATION_TIME) {
+            cache.delete(key);
+        }
+    }
+}, 60000); // Run every minute
+
+// POST endpoint for Python code execution
+app.post("/", (req, res) => {
     const { code, input } = req.body;
 
+    // Validate input
     if (!code) {
-        return res.status(400).json({ output: 'Error: No code provided!' });
+        return res.status(400).json({ error: { fullError: "Error: No code provided!" } });
     }
 
-    const sourceFile = path.join(__dirname, 'temp.py');
+    // Generate a unique hash for the code
+    const codeHash = crypto.createHash("md5").update(code).digest("hex");
 
-    // Write the code to a temporary file
-    fs.writeFileSync(sourceFile, code);
+    // Check if result is cached
+    if (cache.has(codeHash)) {
+        return res.json({ output: cache.get(codeHash).result });
+    }
 
-    try {
-        // Run the Python script (use python3 if needed)
-        const runProcess = spawn('python3', [sourceFile], { stdio: 'pipe' });
+    // Create a worker thread for Python code execution
+    const worker = new Worker("./python-worker.js", {
+        workerData: { code, input },
+    });
 
-        let output = '';
-
-        // Collect output from Python script
-        runProcess.stdout.on('data', (data) => {
-            console.log('Python Output:', data.toString());  // For debugging
-            output += data.toString();
-        });
-
-        // Collect error output from Python script
-        runProcess.stderr.on('data', (data) => {
-            console.error('Python Error:', data.toString());  // For debugging
-            output += data.toString();
-        });
-
-        // Handle process close
-        runProcess.on('close', (code) => {
-            if (code !== 0) {
-                return res.status(500).json({ output: 'Error: Code execution failed' });
+    worker.on("message", (result) => {
+        // Cache the result if successful
+        if (result.output) {
+            if (cache.size >= MAX_CACHE_SIZE) {
+                // Remove the oldest cache entry
+                const oldestKey = [...cache.keys()][0];
+                cache.delete(oldestKey);
             }
+            cache.set(codeHash, { result: result.output, timestamp: Date.now() });
+        }
+        res.json(result);
+    });
 
-            res.json({ output: output || 'No output' });
+    worker.on("error", (err) => {
+        res.status(500).json({ error: { fullError: `Worker error: ${err.message}` } });
+    });
 
-            // Cleanup temporary file
-            fs.unlinkSync(sourceFile);
-        });
-
-        // Timeout in case the code runs too long
-        setTimeout(() => {
-            runProcess.kill();  // Kill the process if it takes too long
-            res.status(500).json({ output: 'Error: Code execution timed out' });
-
-            // Cleanup temporary file if timeout occurs
-            if (fs.existsSync(sourceFile)) fs.unlinkSync(sourceFile);
-        }, 30000); // Timeout after 30 seconds
-
-    } catch (error) {
-        console.error('Error running code:', error.message);
-        res.status(500).json({ output: `Server Error: ${error.message}` });
-
-        // Cleanup temporary file in case of an error
-        if (fs.existsSync(sourceFile)) fs.unlinkSync(sourceFile);
-    }
+    worker.on("exit", (code) => {
+        if (code !== 0) {
+            console.error(`Worker stopped with exit code ${code}`);
+        }
+    });
 });
 
-app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
+// Health check endpoint
+app.get("/health", (req, res) => {
+    res.json({ status: "Server is running" });
+});
+
+// Self-pinging mechanism to keep the server alive
+setInterval(() => {
+    http.get(`http://localhost:${port}/health`, (res) => {
+        console.log("Health check pinged!");
+    });
+}, 5 * 60 * 1000); // Ping every 5 minutes
+
+// Start the server
+app.listen(port, () => {
+    console.log(`Server is running on http://localhost:${port}`);
 });
