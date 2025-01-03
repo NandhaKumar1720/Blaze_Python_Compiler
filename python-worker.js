@@ -10,7 +10,7 @@ function cleanupFiles(...files) {
         try {
             fs.unlinkSync(file);
         } catch (err) {
-            // Ignore errors
+            // Ignore errors (for files that may not exist)
         }
     });
 }
@@ -28,29 +28,31 @@ function cleanupFiles(...files) {
         fs.writeFileSync(sourceFile, code);
 
         // Execute the Python code using Python's execSync
-        const pythonCommand = "python"; // Adjust this if necessary for your environment
+        const pythonCommand = "python3"; // Use python3 if that's the correct interpreter in your environment
         let output = "";
 
         try {
             output = execSync(`${pythonCommand} ${sourceFile}`, {
                 input, // Pass input to the Python script
-                encoding: "utf-8",
+                encoding: "utf-8", // Ensures we get the output as a string
             });
         } catch (error) {
+            // Clean up files before sending an error message
             cleanupFiles(sourceFile);
             return parentPort.postMessage({
                 error: { fullError: `Runtime Error:\n${error.message}` },
             });
         }
 
-        // Clean up temporary Python file
+        // Clean up temporary Python file after execution
         cleanupFiles(sourceFile);
 
         // Send the output back to the main thread
-        return parentPort.postMessage({
+        parentPort.postMessage({
             output: output || "No output received!",
         });
     } catch (err) {
+        // Clean up files and send server error if anything goes wrong
         cleanupFiles(sourceFile);
         return parentPort.postMessage({
             error: { fullError: `Server error: ${err.message}` },
