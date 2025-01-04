@@ -77,8 +77,9 @@ app.post("/", (req, res) => {
 
 // Health check endpoint
 app.get("/health", (req, res) => {
-    res.json({ status: "Server is running" });
+    res.status(200).json({ status: "Server is healthy!" });
 });
+
 
 // Self-pinging mechanism to keep the server alive
 setInterval(() => {
