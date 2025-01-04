@@ -4,6 +4,24 @@ const { Worker } = require("worker_threads");
 const cors = require("cors");
 const crypto = require("crypto");
 const http = require("http");
+const cluster = require('cluster');
+const os = require('os');
+
+if (cluster.isMaster) {
+  const numCPUs = os.cpus().length;
+
+  for (let i = 0; i < numCPUs; i++) {
+    cluster.fork();
+  }
+
+  cluster.on('exit', (worker) => {
+    console.log(`Worker ${worker.process.pid} died. Starting a new one...`);
+    cluster.fork();
+  });
+} else {
+  // Your existing Express server setup
+  require('./server');
+}
 
 const app = express();
 const port = 3000;
