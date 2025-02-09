@@ -42,6 +42,15 @@ app.post("/", (req, res) => {
     });
 });
 
+app.post("/autocorrect", (req, res) => {
+    const { code } = req.body;
+    const worker = new Worker("./python-autocorrect.js", { workerData: { code } });
+
+    worker.on("message", (result) => res.json({ correctedCode: result.correctedCode }));
+    worker.on("error", (err) => res.status(500).json({ error: err.message }));
+});
+
+
 // Health check endpoint
 app.get("/health", (req, res) => {
     res.status(200).json({ status: "Server is healthy!" });
