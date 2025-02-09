@@ -3,7 +3,6 @@ FROM node:16
 
 # Install Python and necessary build tools
 RUN apt-get update && apt-get install -y python3 python3-pip build-essential
-RUN pip3 install autopep8
 
 # Set the working directory inside the container
 WORKDIR /app
