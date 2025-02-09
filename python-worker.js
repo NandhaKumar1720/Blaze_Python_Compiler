@@ -4,81 +4,55 @@ const os = require("os");
 const fs = require("fs");
 const path = require("path");
 
-// Utility function to clean up files
+// Utility function to clean up temporary files
 function cleanupFiles(...files) {
     files.forEach((file) => {
         try {
             fs.unlinkSync(file);
         } catch (err) {
-            // Ignore file deletion errors
+            // Ignore errors (for files that may not exist)
         }
     });
 }
 
-// Function to auto-correct Python code
-function autoCorrectPythonCode(code) {
-    const tmpDir = os.tmpdir();
-    const sourceFile = `${tmpDir}/temp_${Date.now()}.py`;
-
-    try {
-        // Write code to temporary file
-        fs.writeFileSync(sourceFile, code);
-
-        // Run autopep8 to format code
-        const correctedCode = execSync(`autopep8 --aggressive --aggressive ${sourceFile}`, {
-            encoding: "utf-8",
-        });
-
-        cleanupFiles(sourceFile);
-        return correctedCode;
-    } catch (error) {
-        cleanupFiles(sourceFile);
-        return code; // If auto-correction fails, return the original code
-    }
-}
-
 // Worker logic
 (async () => {
-    let { code, input } = workerData;
+    const { code, input } = workerData;
 
-    // Auto-correct the Python code
-    const correctedCode = autoCorrectPythonCode(code);
-
-    // If corrected code is different, return correction before execution
-    if (correctedCode !== code) {
-        return parentPort.postMessage({
-            correctedCode,
-            message: "Code was automatically corrected.",
-        });
-    }
-
-    // Temporary file for execution
+    // Paths for temporary Python script
     const tmpDir = os.tmpdir();
-    const sourceFile = `${tmpDir}/temp_${Date.now()}.py`;
+    const sourceFile = path.join(tmpDir, `temp_${Date.now()}.py`);
 
     try {
-        // Write corrected Python code to file
-        fs.writeFileSync(sourceFile, correctedCode);
+        // Write the Python code to the source file
+        fs.writeFileSync(sourceFile, code);
 
-        // Execute Python code
-        const pythonCommand = "python3";
+        // Execute the Python code using Python's execSync
+        const pythonCommand = "python3"; // Use python3 if that's the correct interpreter in your environment
         let output = "";
 
         try {
             output = execSync(`${pythonCommand} ${sourceFile}`, {
-                input,
-                encoding: "utf-8",
+                input, // Pass input to the Python script
+                encoding: "utf-8", // Ensures we get the output as a string
             });
         } catch (error) {
+            // Clean up files before sending an error message
             cleanupFiles(sourceFile);
             return parentPort.postMessage({
                 error: { fullError: `Runtime Error:\n${error.message}` },
             });
         }
 
+        // Clean up temporary Python file after execution
         cleanupFiles(sourceFile);
-        parentPort.postMessage({ output });
+
+        // Send the output back to the main thread
+        parentPort.postMessage({
+            output: output || "No output received!",
+        });
     } catch (err) {
+        // Clean up files and send server error if anything goes wrong
         cleanupFiles(sourceFile);
         return parentPort.postMessage({
             error: { fullError: `Server error: ${err.message}` },
