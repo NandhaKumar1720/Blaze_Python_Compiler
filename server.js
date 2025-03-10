@@ -1,60 +1,47 @@
 const express = require("express");
-const bodyParser = require("body-parser");
-const { Worker } = require("worker_threads");
-const cors = require("cors");
 const http = require("http");
+const WebSocket = require("ws");
+const { spawn } = require("child_process");
+const cors = require("cors");
+const path = require("path");
 
 const app = express();
-const port = 3000;
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ server });
 
-// Enable CORS
 app.use(cors());
+app.use(express.static(path.join(__dirname, "public"))); // Serve frontend
 
-// Middleware for JSON parsing
-app.use(bodyParser.json());
+wss.on("connection", (ws) => {
+    console.log("New WebSocket connection established!");
 
-// POST endpoint for Python code execution
-app.post("/", (req, res) => {
-    const { code, input } = req.body;
+    // Start a shell session (bash or sh)
+    const shell = spawn("bash", [], { shell: true });
 
-    // Validate input
-    if (!code) {
-        return res.status(400).json({ error: { fullError: "Error: No code provided!" } });
-    }
-
-    // Create a worker thread for Python code execution
-    const worker = new Worker("./python-worker.js", {
-        workerData: { code, input },
+    // Send data from shell to WebSocket
+    shell.stdout.on("data", (data) => {
+        ws.send(data.toString());
     });
 
-    worker.on("message", (result) => {
-        res.json(result);
+    shell.stderr.on("data", (data) => {
+        ws.send(data.toString());
     });
 
-    worker.on("error", (err) => {
-        res.status(500).json({ error: { fullError: `Worker error: ${err.message}` } });
+    // Receive input from WebSocket and write to the shell
+    ws.on("message", (message) => {
+        shell.stdin.write(message + "\n");
     });
 
-    worker.on("exit", (code) => {
-        if (code !== 0) {
-            console.error(`Worker stopped with exit code ${code}`);
-        }
+    // Handle process exit
+    shell.on("close", () => {
+        ws.close();
+    });
+
+    ws.on("close", () => {
+        shell.kill();
     });
 });
 
-// Health check endpoint
-app.get("/health", (req, res) => {
-    res.status(200).json({ status: "Server is healthy!" });
-});
-
-// Self-pinging mechanism to keep the server alive
-setInterval(() => {
-    http.get(`http://localhost:${port}/health`, (res) => {
-        console.log("Health check pinged!");
-    });
-}, 1 * 60 * 1000); // Ping every 5 minutes
-
-// Start the server
-app.listen(port, () => {
-    console.log(`Server is running on http://localhost:${port}`);
+server.listen(3000, () => {
+    console.log("Server running on http://localhost:3000");
 });
