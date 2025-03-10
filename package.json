@@ -7,6 +7,10 @@
     "body-parser": "^1.19.0",
     "path": "^0.12.7",
     "child_process": "^1.0.2",
-    "cors": "^2.8.5"
+    "cors": "^2.8.5",
+    "ws": "^8.15.0",
+    "xterm": "^5.2.1",
+    "xterm-addon-attach": "^0.8.0",
+    "xterm-addon-fit": "^0.8.0"
   }
 }
