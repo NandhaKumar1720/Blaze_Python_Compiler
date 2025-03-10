@@ -9,6 +9,7 @@ apt-get install -y python3 python3-pip build-essential
 
 # Install Node.js dependencies
 npm install
+npm install express ws xterm xterm-addon-attach xterm-addon-fit
 
 echo "Dependencies installed successfully."
 
