@@ -13,6 +13,9 @@ COPY package.json package-lock.json ./
 # Install dependencies using npm
 RUN npm install
 
+# Install WebSocket and Terminal Dependencies
+RUN npm install express ws xterm xterm-addon-attach xterm-addon-fit
+
 # Copy the rest of the application code
 COPY . .
 
@@ -21,4 +24,3 @@ EXPOSE 3000
 
 # Start the server
 CMD ["node", "server.js"]
-
